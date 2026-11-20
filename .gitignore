@@ -1,6 +1,7 @@
 /gopostman
 /gopostman.exe
 /data/
+/dist/
 node_modules/
 .DS_Store
 *.tmp
