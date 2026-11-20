@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoPostman · 本地 API 调试台</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="15" fill="#ff6c37"/>
+        <path d="M9 16.5l4.2 4.2L23.5 11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="brand-name">GoPostman</span>
+      <span class="local-badge" title="无账号体系、无云同步、数据仅存本机">本地模式 · 免登录</span>
+    </div>
+
+    <div class="env-bar">
+      <span class="field-label">环境</span>
+      <select id="env-select" class="select" title="切换环境"></select>
+      <button class="btn btn-ghost btn-sm" id="btn-vars" title="管理环境与变量">变量</button>
+    </div>
+
+    <div class="top-actions">
+      <span id="save-state" class="save-state">已保存到本机</span>
+      <button class="btn btn-ghost btn-sm" id="btn-import">导入</button>
+      <button class="btn btn-ghost btn-sm" id="btn-export">导出</button>
+      <button class="btn btn-ghost btn-sm" id="btn-settings">设置</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-tabs">
+        <button class="sidebar-tab active" data-side="collections">集合</button>
+        <button class="sidebar-tab" data-side="history">历史</button>
+        <button class="sidebar-tab" data-side="envs">环境</button>
+      </div>
+
+      <div class="side-panel" data-panel="collections">
+        <div class="side-toolbar">
+          <input id="collection-search" class="input input-sm" placeholder="搜索请求 / 集合" autocomplete="off">
+          <button class="icon-btn" id="btn-new-collection" title="新建集合">+</button>
+          <button class="icon-btn" id="btn-new-folder" title="新建文件夹">▣</button>
+        </div>
+        <div id="collection-tree" class="tree"></div>
+        <div class="side-empty" id="collection-empty">还没有集合。点上方 + 新建，或从 Postman 导入。</div>
+      </div>
+
+      <div class="side-panel hidden" data-panel="history">
+        <div class="side-toolbar">
+          <input id="history-search" class="input input-sm" placeholder="搜索历史" autocomplete="off">
+          <button class="icon-btn" id="btn-clear-history" title="清空历史">×</button>
+        </div>
+        <div id="history-list" class="history-list"></div>
+        <div class="side-empty" id="history-empty">还没有请求记录。</div>
+      </div>
+
+      <div class="side-panel hidden" data-panel="envs">
+        <div class="side-toolbar">
+          <button class="btn btn-sm btn-primary" id="btn-new-env">+ 新建环境</button>
+        </div>
+        <div id="env-list" class="env-list"></div>
+        <div class="side-section-title">全局变量</div>
+        <div id="globals-list" class="env-list"></div>
+      </div>
+
+      <div class="sidebar-footer">
+        <span class="dot dot-green"></span>
+        <span id="footer-status">本机数据 · 无网络依赖</span>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <div class="tabs-bar">
+        <div id="tabs" class="tabs"></div>
+        <button class="icon-btn tab-add" id="btn-new-tab" title="新建请求标签 (Ctrl+T)" aria-label="新建请求标签">+</button>
+      </div>
+
+      <div class="split">
+        <section class="request-pane">
+          <div class="url-bar">
+            <select id="method-select" class="method-select"></select>
+            <input id="url-input" class="url-input" spellcheck="false" placeholder="输入 URL，支持 {{变量}}，例如 {{base_url}}/api/users">
+            <button id="btn-send" class="btn btn-send">发送 <kbd>Ctrl</kbd>+<kbd>↵</kbd></button>
+            <button id="btn-save-request" class="btn btn-ghost">保存</button>
+            <button id="btn-curl" class="btn btn-ghost" title="复制为 cURL">&lt;/&gt;</button>
+          </div>
+
+          <div class="hint-bar" id="url-hint"></div>
+
+          <div class="pane-tabs" id="req-tabs">
+            <button class="pane-tab active" data-reqtab="params">Params <span class="count" id="count-params">0</span></button>
+            <button class="pane-tab" data-reqtab="headers">Headers <span class="count" id="count-headers">0</span></button>
+            <button class="pane-tab" data-reqtab="body">Body <span class="count" id="count-body"></span></button>
+            <button class="pane-tab" data-reqtab="auth">Auth <span class="count" id="count-auth"></span></button>
+            <button class="pane-tab" data-reqtab="pre">Pre-request</button>
+            <button class="pane-tab" data-reqtab="tests">Tests <span class="count" id="count-tests"></span></button>
+          </div>
+
+          <div class="pane-body" id="req-panels">
+            <div class="req-panel" data-reqpanel="params">
+              <div class="panel-toolbar"><button class="btn btn-link btn-sm" id="btn-bulk-params">批量编辑</button></div>
+              <div id="params-kv"></div>
+            </div>
+
+            <div class="req-panel hidden" data-reqpanel="headers">
+              <div class="panel-toolbar"><span class="muted">Content-Type 留空时会根据 Body 自动设置</span><button class="btn btn-link btn-sm" id="btn-bulk-headers">批量编辑</button></div>
+              <div id="headers-kv"></div>
+            </div>
+
+            <div class="req-panel hidden" data-reqpanel="body">
+              <div class="body-toolbar">
+                <div class="radio-row" id="body-mode"></div>
+                <select id="raw-lang" class="select select-sm" title="文本格式">
+                  <option value="json">JSON</option><option value="xml">XML</option>
+                  <option value="html">HTML</option><option value="javascript">JavaScript</option>
+                  <option value="text">Text</option>
+                </select>
+                <button class="btn btn-link btn-sm" id="btn-format-json" title="按 2 空格缩进重排，保留原有换行结构">格式化 JSON</button>
+              </div>
+              <div id="body-none" class="body-section muted">此请求没有请求体。</div>
+              <div id="body-raw" class="body-section hidden">
+                <div class="editor-toolbar">
+                  <button class="btn btn-link btn-sm" id="btn-minify-json" title="压缩成单行">压缩</button>
+                  <button class="btn btn-link btn-sm" id="btn-wrap-toggle" title="长行自动折行显示，不再横向滚动">自动换行</button>
+                  <span class="toolbar-sep"></span>
+                  <button class="btn btn-link btn-sm" id="btn-fold-selection" title="折叠光标所在的对象 / 数组">折叠光标块</button>
+                  <button class="btn btn-link btn-sm" id="btn-fold-all" title="折叠所有顶层对象 / 数组；折叠为只读预览，原始数据不变">折叠全部</button>
+                  <button class="btn btn-link btn-sm" id="btn-expand-all" title="恢复完整 JSON，双击「… N 行」也可单独展开">展开全部</button>
+                  <span id="fold-status" class="editor-status"></span>
+                </div>
+                <textarea id="raw-body" class="code-area" spellcheck="false" placeholder='{"key": "value"}'></textarea>
+              </div>
+              <div id="body-formdata" class="body-section hidden"><div id="formdata-kv"></div></div>
+              <div id="body-urlencoded" class="body-section hidden"><div id="urlencoded-kv"></div></div>
+              <div id="body-graphql" class="body-section hidden">
+                <label class="field-label">QUERY</label>
+                <textarea id="graphql-query" class="code-area code-area-sm" spellcheck="false" placeholder="query { user(id: 1) { name } }"></textarea>
+                <label class="field-label">VARIABLES</label>
+                <textarea id="graphql-vars" class="code-area code-area-sm" spellcheck="false" placeholder='{"id": 1}'></textarea>
+              </div>
+              <div id="body-binary" class="body-section hidden">
+                <input type="file" id="binary-file" class="file-input">
+                <div id="binary-info" class="muted"></div>
+                <label class="field-label">或粘贴 base64</label>
+                <textarea id="binary-base64" class="code-area code-area-sm" spellcheck="false" placeholder="SGVsbG8gV29ybGQ="></textarea>
+              </div>
+            </div>
+
+            <div class="req-panel hidden" data-reqpanel="auth">
+              <div class="auth-form">
+                <label class="field-label">认证方式</label>
+                <select id="auth-type" class="select">
+                  <option value="inherit">Inherit（跟随集合 / 环境）</option>
+                  <option value="none">No Auth</option>
+                  <option value="bearer">Bearer Token</option>
+                  <option value="basic">Basic Auth</option>
+                  <option value="apikey">API Key</option>
+                </select>
+                <div id="auth-fields" class="auth-fields"></div>
+                <p class="auth-note muted">本地工具不做 OAuth 授权跳转，直接把获取到的 access token 填到 Bearer 即可。所有凭据只保存在本机数据文件里。</p>
+              </div>
+            </div>
+
+            <div class="req-panel hidden" data-reqpanel="pre">
+              <div class="panel-toolbar"><span class="muted">发送前执行（浏览器内 JS）。可用 pm.environment.set / pm.variables.get</span></div>
+              <textarea id="pre-script" class="code-area" spellcheck="false" placeholder="pm.environment.set('timestamp', Date.now().toString());"></textarea>
+            </div>
+
+            <div class="req-panel hidden" data-reqpanel="tests">
+              <div class="panel-toolbar"><span class="muted">收到响应后执行。可用 pm.test / pm.expect / pm.response.json()</span></div>
+              <textarea id="test-script" class="code-area code-area-sm" spellcheck="false" placeholder="pm.test('状态码 200', () => pm.response.to.have.status(200));"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <div class="split-handle" id="split-handle" title="拖动调整高度"></div>
+
+        <section class="response-pane">
+          <div class="resp-head">
+            <div class="resp-title">响应</div>
+            <div id="resp-summary" class="resp-summary muted">尚未发送请求</div>
+            <div class="resp-actions">
+              <button class="btn btn-link btn-sm" id="btn-find-response" title="在响应体中查找 (Ctrl+F)">查找</button>
+              <button class="btn btn-link btn-sm" id="btn-copy-response">复制</button>
+              <button class="btn btn-link btn-sm" id="btn-download-response">下载</button>
+            </div>
+          </div>
+
+          <div class="resp-search hidden" id="resp-search">
+            <input id="resp-search-input" class="input input-sm" type="text" placeholder="在 Pretty / Raw 响应体中查找，回车跳到下一个" autocomplete="off" spellcheck="false">
+            <span id="resp-search-count" class="resp-search-count">0/0</span>
+            <button class="icon-btn" id="resp-search-prev" title="上一个 (Shift+Enter)">↑</button>
+            <button class="icon-btn" id="resp-search-next" title="下一个 (Enter)">↓</button>
+            <button class="icon-btn" id="resp-search-close" title="关闭 (Esc)">×</button>
+          </div>
+
+          <div class="pane-tabs" id="resp-tabs">
+            <button class="pane-tab active" data-resptab="pretty">Pretty</button>
+            <button class="pane-tab" data-resptab="raw">Raw</button>
+            <button class="pane-tab" data-resptab="preview">Preview</button>
+            <button class="pane-tab" data-resptab="headers">Headers <span class="count" id="count-resp-headers"></span></button>
+            <button class="pane-tab" data-resptab="cookies">Cookies <span class="count" id="count-resp-cookies"></span></button>
+            <button class="pane-tab" data-resptab="tests">Test Results <span class="count" id="count-resp-tests"></span></button>
+            <button class="pane-tab" data-resptab="request">实际请求</button>
+          </div>
+
+          <div class="pane-body resp-panels" id="resp-panels">
+            <div class="resp-panel" data-resppanel="pretty">
+              <div class="viewer-toolbar">
+                <select id="pretty-lang" class="select select-sm"><option value="auto">自动识别</option><option value="json">JSON</option><option value="xml">XML</option><option value="html">HTML</option><option value="text">纯文本</option></select>
+                <span id="response-meta" class="muted"></span>
+              </div>
+              <pre class="code-view" id="pretty-view"><code></code></pre>
+            </div>
+            <div class="resp-panel hidden" data-resppanel="raw"><pre class="code-view" id="raw-view"></pre></div>
+            <div class="resp-panel hidden" data-resppanel="preview"><iframe id="preview-frame" class="preview-frame" sandbox="allow-same-origin" title="HTML 预览"></iframe></div>
+            <div class="resp-panel hidden" data-resppanel="headers"><div id="resp-headers-view" class="kv-view"></div></div>
+            <div class="resp-panel hidden" data-resppanel="cookies"><div id="resp-cookies-view" class="kv-view"></div></div>
+            <div class="resp-panel hidden" data-resppanel="tests"><div id="resp-tests-view" class="test-view"></div></div>
+            <div class="resp-panel hidden" data-resppanel="request"><div id="resp-request-view" class="kv-view"></div></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+<div id="bulk-root"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

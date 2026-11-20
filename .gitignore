@@ -1,0 +1,8 @@
+/gopostman
+/gopostman.exe
+/data/
+node_modules/
+.DS_Store
+*.tmp
+*.log
+.workbuddy/
